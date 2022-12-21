@@ -8,14 +8,14 @@
         },
         "possibly_sensitive": { "type": "boolean" },
         "language": { "type": "keyword" },
-        "source": { "type": "text" },
+        "source": { "type": "keyword" },
         "retweet_count": { "type": "integer" },
         "reply_count": { "type": "integer" },
         "like_count": { "type": "integer" },
         "quote_count": { "type": "integer" },
         "created_at": { 
             "type": "date", 
-            "format": "yyyy-MM-dd HH:mm:ssX" 
+            "format": "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
         },
         "author": {
             "properties": {
@@ -23,11 +23,11 @@
                 "name": { 
                     "type": "text",
                     "fields": {
-                        "name_ngram": {
+                        "ngram": {
                             "type": "text",
                             "analyzer": "custom_ngram"
                         },
-                        "name_shingles": {
+                        "shingles": {
                             "type": "text",
                             "analyzer": "custom_shingles"
                         }
@@ -36,7 +36,7 @@
                 "username": { 
                     "type": "text",
                     "fields": {
-                        "username_ngram": {
+                        "ngram": {
                             "type": "text",
                             "analyzer": "custom_ngram"
                         }
@@ -46,7 +46,7 @@
                     "type": "text",
                     "analyzer": "englando",
                     "fields": {
-                        "description_shingles": {
+                        "shingles": {
                             "type": "text",
                             "analyzer": "custom_shingles"
                         }
@@ -118,11 +118,11 @@
                         "name": { 
                             "type": "text",
                             "fields": {
-                                "name_ngram": {
+                                "ngram": {
                                     "type": "text",
                                     "analyzer": "custom_ngram"
                                 },
-                                "name_shingles": {
+                                "shingles": {
                                     "type": "text",
                                     "analyzer": "custom_shingles"
                                 }
@@ -131,7 +131,7 @@
                         "username": { 
                             "type": "text",
                             "fields": {
-                                "username_ngram": {
+                                "ngram": {
                                     "type": "text",
                                     "analyzer": "custom_ngram"
                                 }

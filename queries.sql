@@ -15,16 +15,15 @@ SELECT COUNT(*) FROM conversations;
 
 ------------------------------------------------------------------------------------
 
--- Tento robi to co ma 
 SELECT 
 	-- COUNT(*)
 	c.id, c."content", c.possibly_sensitive, c."language", c."source", c.retweet_count, c.reply_count, c.like_count, c.quote_count, c.created_at,
-	json_build_object('author', a.*) author,
-	json_build_object('context_annotations', COALESCE(ca.jsons, '[]')) context_annotations,
-	json_build_object('conversation_hashtags', COALESCE(ch.jsons, '[]')) conversation_hashtags,
-	json_build_object('annotations', COALESCE(an.jsons, '[]')) annotations,
-	json_build_object('links', COALESCE(l.jsons, '[]')) links,
-	json_build_object('conversation_references', COALESCE(cr.jsons, '[]')) conversation_references
+	to_json(a.*) author,
+	COALESCE(ca.jsons, '[]') context_annotations,
+	COALESCE(ch.jsons, '[]') conversation_hashtags,
+	COALESCE(an.jsons, '[]') annotations,
+	COALESCE(l.jsons, '[]') links,
+	COALESCE(cr.jsons, '[]') conversation_references
 FROM conversations c
 JOIN authors a ON c.author_id = a.id
 LEFT JOIN (
@@ -70,6 +69,6 @@ LEFT JOIN (
 	FROM conversation_references cr
 	JOIN conversations p ON cr.parent_id = p.id
 	GROUP BY cr.conversation_id
-) cr ON cr.conversation_id = c.id
--- WHERE c.id = '1496733334587777024';
-LIMIT 1000;
+) cr ON cr.conversation_id = c.id;
+--WHERE c.id = '1496733334587777024';
+-- LIMIT 1000;
