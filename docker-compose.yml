@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.5.2-arm64
+    environment:
+      - node.name=es01
+      - cluster.name=docker-cluster
+      - cluster.initial_master_nodes=es01,es02,es03
+      - discovery.seed_hosts=es02,es03
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+    volumes:
+      - esdata01:/usr/share/elasticsearch/data
+    mem_limit: 1073741824
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - 9200:9200
+    networks:
+      - elastic
+    
+  es02:
+    depends_on:
+      - es01
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.5.2-arm64
+    environment:
+      - node.name=es02
+      - cluster.name=docker-cluster
+      - cluster.initial_master_nodes=es01,es02,es03
+      - discovery.seed_hosts=es01,es03
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+    volumes:
+      - esdata02:/usr/share/elasticsearch/data
+    mem_limit: 1073741824
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    networks:
+      - elastic
+
+  es03:
+    depends_on:
+      - es02
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.5.2-arm64
+    environment:
+      - node.name=es03
+      - cluster.name=docker-cluster
+      - cluster.initial_master_nodes=es01,es02,es03
+      - discovery.seed_hosts=es01,es02
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+    volumes:
+      - esdata03:/usr/share/elasticsearch/data
+    mem_limit: 1073741824
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    networks:
+      - elastic
+
+volumes:
+  esdata01:
+    driver: local
+  esdata02:
+    driver: local
+  esdata03:
+    driver: local
+
+networks:
+  elastic:

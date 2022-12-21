@@ -1,0 +1,157 @@
+{
+    "dynamic": "strict",
+    "properties": {
+        "id": { "type": "long" },
+        "content": { 
+            "type": "text", 
+            "analyzer": "englando" 
+        },
+        "possibly_sensitive": { "type": "boolean" },
+        "language": { "type": "keyword" },
+        "source": { "type": "text" },
+        "retweet_count": { "type": "integer" },
+        "reply_count": { "type": "integer" },
+        "like_count": { "type": "integer" },
+        "quote_count": { "type": "integer" },
+        "created_at": { 
+            "type": "date", 
+            "format": "yyyy-MM-dd HH:mm:ssX" 
+        },
+        "author": {
+            "properties": {
+                "id": { "type": "long" },
+                "name": { 
+                    "type": "text",
+                    "fields": {
+                        "name_ngram": {
+                            "type": "text",
+                            "analyzer": "custom_ngram"
+                        },
+                        "name_shingles": {
+                            "type": "text",
+                            "analyzer": "custom_shingles"
+                        }
+                    } 
+                },
+                "username": { 
+                    "type": "text",
+                    "fields": {
+                        "username_ngram": {
+                            "type": "text",
+                            "analyzer": "custom_ngram"
+                        }
+                    }  
+                },
+                "description": { 
+                    "type": "text",
+                    "analyzer": "englando",
+                    "fields": {
+                        "description_shingles": {
+                            "type": "text",
+                            "analyzer": "custom_shingles"
+                        }
+                    }
+                },
+                "followers_count": { "type": "integer" },
+                "following_count": { "type": "integer" },
+                "tweet_count": { "type": "integer" },
+                "listed_count": { "type": "integer" }
+            }
+        },
+        "context_annotations": {
+            "type": "nested",
+            "properties": {
+                "entity": {
+                    "properties": {
+                        "id": { "type": "long" },
+                        "name": { "type": "keyword" },
+                        "description": { 
+                            "type": "text",
+                            "analyzer": "englando"
+                        }
+                    }
+                },
+                "domain": {
+                    "properties": {
+                        "id": { "type": "long" },
+                        "name": { "type": "keyword" },
+                        "description": { 
+                            "type": "text",
+                            "analyzer": "englando" 
+                        }
+                    }
+                }
+            }
+        },
+        "conversation_hashtags": {
+            "properties": {
+                "tag": { 
+                    "type": "text",
+                    "analyzer":"keyword_lowercase"
+                }
+            }
+        },
+        "annotations": {
+            "type": "nested",
+            "properties": {
+                "value": { "type": "keyword" },
+                "type": { "type": "keyword" },
+                "probability": { "type": "float" }
+            }
+        },
+        "links": {
+            "type": "nested",
+            "properties": {
+                "url": { "type": "keyword" },
+                "title": { "type": "keyword" },
+                "description": { "type": "keyword" }
+            }
+        },
+        "conversation_references": {
+            "type": "nested",
+            "properties": {
+                "id": { "type": "long" },
+                "type": { "type": "keyword" },
+                "author": {
+                    "properties": {
+                        "id": { "type": "long" },
+                        "name": { 
+                            "type": "text",
+                            "fields": {
+                                "name_ngram": {
+                                    "type": "text",
+                                    "analyzer": "custom_ngram"
+                                },
+                                "name_shingles": {
+                                    "type": "text",
+                                    "analyzer": "custom_shingles"
+                                }
+                            } 
+                        },
+                        "username": { 
+                            "type": "text",
+                            "fields": {
+                                "username_ngram": {
+                                    "type": "text",
+                                    "analyzer": "custom_ngram"
+                                }
+                            }
+                        }
+                    }
+                },
+                "content": { 
+                    "type": "text",
+                    "analyzer": "englando"
+                },
+                "hashtags": {
+                    "properties":{
+                        "tag": { 
+                            "type": "text",
+                            "analyzer": "keyword_lowercase"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
