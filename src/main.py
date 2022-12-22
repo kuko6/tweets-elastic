@@ -3,6 +3,7 @@ import psycopg
 from elasticsearch import Elasticsearch
 import json
 import os
+import time
 
 INDEX_NAME = 'tweets'
 
@@ -19,7 +20,7 @@ def create_index(es: Elasticsearch) -> None:
         if a['acknowledged']: print('Deleted the old index')
         else: print('Something went wrong :(')
 
-    with open('src/settings.json', 'r') as s, open('src/mapping.json', 'r') as m:
+    with open('src/config/settings.json', 'r') as s, open('src/config/mapping.json', 'r') as m:
         settings = json.load(s)
         mapping = json.load(m)
 
@@ -38,7 +39,7 @@ def fetch_data(conn: psycopg.Connection) -> list[dict]:
 
 def import_data(conn: psycopg.Connection, es: Elasticsearch) -> None:
     with conn.cursor(name='tweets') as cur:
-        cur.itersize = 5000
+        # cur.itersize = 10000
         cur.execute("""
         SELECT 
             c.id, c."content", c.possibly_sensitive, c."language", c."source", c.retweet_count, c.reply_count, c.like_count, c.quote_count, c.created_at,
@@ -95,33 +96,39 @@ def import_data(conn: psycopg.Connection, es: Elasticsearch) -> None:
             GROUP BY cr.conversation_id
         ) cr ON cr.conversation_id = c.id
         -- WHERE c.id = '1496733334587777024';
-        LIMIT 10000;
+        LIMIT 1000000;
         """)
         
         data = []
-        # while True:
-        #     rows = cur.fetchmany(10)
-        #     if len(rows) == 0:
-        #         break
+        start_time = time.time()
+        j = 0
+        while True:
+            rows = cur.fetchmany(10000)
+            if len(rows) == 0:
+                break
 
-        #     #print(len(rows))
-        #     i = 0
-        #     data.clear()
-        #     print('|New batch|')
-        #     for row in rows:
-        #         header = {'index': {'_index': INDEX_NAME, '_id': row.pop('id')}}
-        #         data.extend([header, row])
-        #         i += 1
-        #         print(i)
+            i = 0
+            data.clear()
+            # print('|New batch|')
+            for row in rows:
+                header = {'index': {'_index': INDEX_NAME, '_id': row.pop('id')}}
+                data.extend([header, row])
+                i += 1
+                j += 1
+                if j%100000 == 0:
+                    #print(i)
+                    print(f'Execution after {j} rows: {round(time.time() - start_time, 3)}s')
 
-        i = 0
-        for row in cur:
-            header = {'index': {'_index': INDEX_NAME, '_id': row.pop('id')}}
-            data.extend([header, row])
-            i += 1
-            if i%5000==0: 
-                print(i)
-                data.clear()
+        # i = 0
+        # for row in cur:
+        #     header = {'index': {'_index': INDEX_NAME, '_id': row.pop('id')}}
+        #     data.extend([header, row])
+        #     #print(len(row))
+        #     i += 1
+        #     if i%100000==0: 
+        #         #print(i)
+        #         print(f'Execution after {i} rows: {round(time.time() - start_time, 3)}s')
+        #         data.clear()
         
         # print(data)
         # a = es.bulk(index=INDEX_NAME, operations=data)
@@ -132,6 +139,9 @@ def import_data(conn: psycopg.Connection, es: Elasticsearch) -> None:
 
         # rows[0]['created_at'] = str(rows[0]['created_at'])
         # print(json.dumps(rows[0]))
+    input()    
+    conn.close()
+    input()
 
 
 def main() -> None:
@@ -147,7 +157,7 @@ def main() -> None:
     
     #create_index(es)
     import_data(conn, None)
-
+    
     conn.close()
     #es.close()
 

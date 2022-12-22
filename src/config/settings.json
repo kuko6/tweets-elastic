@@ -1,6 +1,7 @@
 {
     "index": {
-        "number_of_replicas": 0,
+        "number_of_shards": 3,
+        "number_of_replicas": 1,
         "max_ngram_diff": 9
     },
     "analysis": {

@@ -96,7 +96,7 @@
             "properties": {
                 "value": { "type": "keyword" },
                 "type": { "type": "keyword" },
-                "probability": { "type": "float" }
+                "probability": { "type": "half_float" }
             }
         },
         "links": {

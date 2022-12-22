@@ -21,7 +21,6 @@ def connect_postgres() -> psycopg.Connection:
 
     conn = None
     try:
-        # print('Connecting to the PostgreSQL database...')
         conn = psycopg.connect(
             host='127.0.0.1',
             dbname='pdt',
