@@ -5,6 +5,9 @@ from elasticsearch.helpers import parallel_bulk
 import json
 import os
 import time
+import jsonlines
+import gzip
+
 
 INDEX_NAME = 'tweets'
 
@@ -91,20 +94,66 @@ def fetch_data(conn: psycopg.Connection, next_id=0, limit=5000) -> psycopg.Serve
         FROM conversation_references cr
         JOIN conversations p ON cr.parent_id = p.id
         GROUP BY cr.conversation_id
-    ) cr ON cr.conversation_id = c.id
-    WHERE c.id > (%s)
-    ORDER BY c.id ASC
-    LIMIT (%s);
-    """, (next_id, limit))
+    ) cr ON cr.conversation_id = c.id;
+    """)
     
     return cur
 
 
+def read_jsonl():
+    with gzip.open('./tweets.jsonl.gz') as file:
+        i = 0
+        for line in file:
+            i+=1
+            print(i)
+            # tweet = json.loads(line)
+            # print(json.dumps(tweet))
+            # break
+
+
+def create_jsonl(data: list[dict]):
+    with gzip.open('./tweets.jsonl.gz', 'ab') as file:
+        json_writer = jsonlines.Writer(file)
+        json_writer.write_all(data)
+
+
+def call_pg(data_size=1000000) -> None:
+    if os.path.isfile('./tweets.jsonl.gz'):
+        c = input('Do you want to replace the tweets.jsonl.gz? (y/n): ')
+        if c != 'y': return
+        
+        os.remove('./tweets.jsonl.gz')
+        print('Deleted the file')
+
+    conn = connect_postgres()
+    if conn == None:
+        print('Connection to the database failed :(')
+        return
+
+    start_time = time.time()
+    processed_rows = 0
+
+    cur = fetch_data(conn, 0, limit=data_size)
+    while True:
+        rows = cur.fetchmany(10000)
+        if len(rows) == 0:  break
+        for row in rows: 
+            row['created_at'] = str(row['created_at'])
+            processed_rows += 1
+        create_jsonl(rows)
+        
+        # if processed_rows%10000 == 0:
+        print(f'Execution after {processed_rows} rows: {round(time.time() - start_time, 3)}s') 
+    
+    cur.close()
+    conn.close()
+
+
 def import_data(es: Elasticsearch, data_size=-1) -> None:
     batch_size = 1000 # seems to be the best amount of documents to be inserted at once 
-    limit = 4000000 # how many rows will be selected from postgres
+    limit = 1000000 # how many rows will be selected from postgres
 
-    total_time = start_time = time.time()
+    total_time = time.time()
     total_processed_rows = 0
     
     if data_size != -1 and data_size < limit:
@@ -118,6 +167,7 @@ def import_data(es: Elasticsearch, data_size=-1) -> None:
     if conn == None:
         print('Connection to the database failed :(')
         return
+
     while True: 
         cur = fetch_data(conn, next_id, limit)
 
@@ -173,7 +223,9 @@ def main() -> None:
     
     # es.close()
 
-    import_data(None, data_size=4000000)
+    #import_data(None, data_size=1000000)
+    call_pg()
+    #read_jsonl()
 
 
 if __name__ == '__main__':
