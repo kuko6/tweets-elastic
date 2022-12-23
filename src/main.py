@@ -1,6 +1,7 @@
 from config.connect import connect_postgres, connect_elastic
 import psycopg
 from elasticsearch import Elasticsearch
+from elasticsearch.helpers import parallel_bulk
 import json
 import os
 import time
@@ -35,7 +36,7 @@ def create_index(es: Elasticsearch) -> None:
 
 def fetch_data(conn: psycopg.Connection, next_id=0, limit=5000) -> psycopg.ServerCursor:
     cur = conn.cursor(name='tweets')
-    cur.itersize = 10000
+    #cur.itersize = 10000
     cur.execute("""
     SELECT 
         c.id, c."content", c.possibly_sensitive, c."language", c."source", c.retweet_count, c.reply_count, c.like_count, c.quote_count, c.created_at,
@@ -92,6 +93,7 @@ def fetch_data(conn: psycopg.Connection, next_id=0, limit=5000) -> psycopg.Serve
         GROUP BY cr.conversation_id
     ) cr ON cr.conversation_id = c.id
     WHERE c.id > (%s)
+    ORDER BY c.id ASC
     LIMIT (%s);
     """, (next_id, limit))
     
@@ -100,7 +102,7 @@ def fetch_data(conn: psycopg.Connection, next_id=0, limit=5000) -> psycopg.Serve
 
 def import_data(es: Elasticsearch, data_size=-1) -> None:
     batch_size = 1000
-    limit = 100000
+    limit = 1000000 
 
     total_time = start_time = time.time()
     total_processed_rows = 0
@@ -109,6 +111,9 @@ def import_data(es: Elasticsearch, data_size=-1) -> None:
         limit = data_size
 
     next_id = 0
+    
+    # outer loop to disconnect and reconnect to postgres 
+    # since just closing the cursor doesnt free up resources :(
     while True: 
         conn = connect_postgres()
         if conn == None:
@@ -121,26 +126,38 @@ def import_data(es: Elasticsearch, data_size=-1) -> None:
         start_time = time.time()
         processed_rows = 0
 
-        # iterate over the results 
-        for row in cur:
-            header = {'index': {'_index': INDEX_NAME, '_id': row.pop('id')}}
-            data.extend([header, row])
-            processed_rows += 1
-            if processed_rows%batch_size == 0:
-                next_id = header['index']['_id']
+        # import data in batches
+        while True:
+            rows = cur.fetchmany(batch_size)
+            if len(rows) == 0:  break
+
+            # iterate over the batch 
+            for row in rows:
+                header = {'index': {'_index': INDEX_NAME, '_id': row.pop('id')}}
+                data.extend([header, row])
+                processed_rows += 1
+
+            next_id = header['index']['_id']
+            if processed_rows%10000 == 0:
                 print(f'Execution after {processed_rows} rows: {round(time.time() - start_time, 3)}s')
-                a = es.bulk(index=INDEX_NAME, operations=data)
-                if a['errors']: 
-                    print(a['items'])
-                else: 
-                    print(f'Succesfully inserted: {len(data)/2}')
-                data.clear()
+            
+            # successes = 0
+            # for success, info in parallel_bulk(client=es, actions=data, index="tweets", thread_count=4, chunk_size=batch_size):
+            #     successes += success
+            # print(f'Succesfully inserted: {successes}')
+            a = es.bulk(index=INDEX_NAME, operations=data)
+            if a['errors']: 
+                print(a['items'])
+            else: 
+                print(f'Succesfully inserted: {len(data)/2}')
+            data.clear()
         
         total_processed_rows += processed_rows
         print(f'Total execution after {total_processed_rows} rows: {round(time.time() - total_time, 3)}s') 
 
         cur.close()
         conn.close()
+        # input()
         print(next_id)
 
         if processed_rows == 0 or total_processed_rows >= data_size:
@@ -154,10 +171,11 @@ def main() -> None:
         return
     
     create_index(es)
-    import_data(es, data_size=5000)
+    import_data(es, data_size=2000000)
     
-    #conn.close()
     es.close()
+
+    # import_data(None, data_size=1000000)
 
 
 if __name__ == '__main__':
