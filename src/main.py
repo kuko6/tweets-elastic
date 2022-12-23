@@ -101,8 +101,8 @@ def fetch_data(conn: psycopg.Connection, next_id=0, limit=5000) -> psycopg.Serve
 
 
 def import_data(es: Elasticsearch, data_size=-1) -> None:
-    batch_size = 1000
-    limit = 1000000 
+    batch_size = 1000 # seems to be the best amount of documents to be inserted at once 
+    limit = 4000000 # how many rows will be selected from postgres
 
     total_time = start_time = time.time()
     total_processed_rows = 0
@@ -110,16 +110,15 @@ def import_data(es: Elasticsearch, data_size=-1) -> None:
     if data_size != -1 and data_size < limit:
         limit = data_size
 
-    next_id = 0
+    next_id = 0 # used as pagination, faster than using offset 
     
     # outer loop to disconnect and reconnect to postgres 
     # since just closing the cursor doesnt free up resources :(
+    conn = connect_postgres()
+    if conn == None:
+        print('Connection to the database failed :(')
+        return
     while True: 
-        conn = connect_postgres()
-        if conn == None:
-            print('Connection to the database failed :(')
-            return
-
         cur = fetch_data(conn, next_id, limit)
 
         data = []
@@ -131,51 +130,50 @@ def import_data(es: Elasticsearch, data_size=-1) -> None:
             rows = cur.fetchmany(batch_size)
             if len(rows) == 0:  break
 
-            # iterate over the batch 
+            # iterate over the batch to create bulk import for elastic
             for row in rows:
                 header = {'index': {'_index': INDEX_NAME, '_id': row.pop('id')}}
                 data.extend([header, row])
                 processed_rows += 1
 
             next_id = header['index']['_id']
+
+            # a = es.bulk(index=INDEX_NAME, operations=data)
+            # if a['errors']: 
+            #     print(a['items'])
+            # else: 
+            #     print(f'Succesfully inserted: {len(data)/2} documents')
+            data.clear()
+
             if processed_rows%10000 == 0:
                 print(f'Execution after {processed_rows} rows: {round(time.time() - start_time, 3)}s')
-            
-            # successes = 0
-            # for success, info in parallel_bulk(client=es, actions=data, index="tweets", thread_count=4, chunk_size=batch_size):
-            #     successes += success
-            # print(f'Succesfully inserted: {successes}')
-            a = es.bulk(index=INDEX_NAME, operations=data)
-            if a['errors']: 
-                print(a['items'])
-            else: 
-                print(f'Succesfully inserted: {len(data)/2}')
-            data.clear()
         
         total_processed_rows += processed_rows
         print(f'Total execution after {total_processed_rows} rows: {round(time.time() - total_time, 3)}s') 
 
         cur.close()
-        conn.close()
+        # conn.close()
         # input()
         print(next_id)
 
         if processed_rows == 0 or total_processed_rows >= data_size:
             break
+    
+    conn.close()
 
 
 def main() -> None:
-    es = connect_elastic()
-    if es == None:
-        print('Connection to Elastic failed :(')
-        return
+    # es = connect_elastic()
+    # if es == None:
+    #     print('Connection to Elastic failed :(')
+    #     return
     
-    create_index(es)
-    import_data(es, data_size=2000000)
+    # create_index(es)
+    # import_data(es, data_size=-1)
     
-    es.close()
+    # es.close()
 
-    # import_data(None, data_size=1000000)
+    import_data(None, data_size=4000000)
 
 
 if __name__ == '__main__':
