@@ -6,10 +6,11 @@ import json
 import os
 import time
 
+
 INDEX_NAME = 'tweets'
 
 def create_index(es: Elasticsearch) -> None:
-    """ Creates new Elelastic index or deletes the old one """
+    """ Create new Elelastic index or delete the old one """
 
     exists = es.indices.exists(index=INDEX_NAME)
     if exists: 
@@ -34,7 +35,9 @@ def create_index(es: Elasticsearch) -> None:
     print(f'Created new index {INDEX_NAME}')
 
 
-def fetch_data(conn: psycopg.Connection, next_id=0, limit=5000) -> psycopg.ServerCursor:
+def query_data(conn: psycopg.Connection, last_id=0, limit=5000) -> psycopg.ServerCursor:
+    """ Create server cursor and execute the query with given `limit` and from given `id` """
+
     cur = conn.cursor(name='tweets')
     #cur.itersize = 10000
     cur.execute("""
@@ -95,14 +98,16 @@ def fetch_data(conn: psycopg.Connection, next_id=0, limit=5000) -> psycopg.Serve
     WHERE c.id > (%s)
     ORDER BY c.id ASC
     LIMIT (%s);
-    """, (next_id, limit))
+    """, (last_id, limit))
     
     return cur
 
 
-def import_data(es: Elasticsearch, data_size=-1) -> None:
-    batch_size = 1000 # seems to be the best amount of documents to be inserted at once 
-    limit = 4000000 # how many rows will be selected from postgres
+def import_data(conn: psycopg.Connection, es: Elasticsearch, data_size=-1) -> None:
+    """ Bulk import data from postgresql to elastic """
+
+    batch_size = 200 # seems to be the best amount of documents to be inserted at once 
+    limit = 8000000 # how many rows will be selected from postgres at once
 
     total_time = start_time = time.time()
     total_processed_rows = 0
@@ -110,39 +115,38 @@ def import_data(es: Elasticsearch, data_size=-1) -> None:
     if data_size != -1 and data_size < limit:
         limit = data_size
 
-    next_id = 0 # used as pagination, faster than using offset 
+    last_id = 0 # used as pagination, faster than using offset 
     
-    # outer loop to disconnect and reconnect to postgres 
-    # since just closing the cursor doesnt free up resources :(
-    conn = connect_postgres()
-    if conn == None:
-        print('Connection to the database failed :(')
-        return
+    # Since the `conversations` table includes around 32mil rows it is not very effective to select all of them at once.
+    # Instead the data is split into multiple groups by the specified limit. 
+    # After iterating over the entire group, the new data is selected with a `WHERE` condition that ensures that this batch 
+    # includes only the rows that are further in the table then the last imported row from the last group (`last_id`)
     while True: 
-        cur = fetch_data(conn, next_id, limit)
+        cur = query_data(conn, last_id, limit)
 
         data = []
         start_time = time.time()
         processed_rows = 0
 
-        # import data in batches
+        # Import data in batches
         while True:
             rows = cur.fetchmany(batch_size)
             if len(rows) == 0:  break
 
-            # iterate over the batch to create bulk import for elastic
+            # Iterate over the batch to create bulk import for elastic
             for row in rows:
+                # Each insert has to also include a header, that specifies the action, selected index and id for the document
                 header = {'index': {'_index': INDEX_NAME, '_id': row.pop('id')}}
                 data.extend([header, row])
                 processed_rows += 1
 
-            next_id = header['index']['_id']
+            last_id = header['index']['_id']
+            
+            # Import the created batch into elastic
+            a = es.bulk(index=INDEX_NAME, operations=data)
+            if a['errors']: print(a['items'])
+            else: print(f'Succesfully inserted: {len(data)/2} documents')
 
-            # a = es.bulk(index=INDEX_NAME, operations=data)
-            # if a['errors']: 
-            #     print(a['items'])
-            # else: 
-            #     print(f'Succesfully inserted: {len(data)/2} documents')
             data.clear()
 
             if processed_rows%10000 == 0:
@@ -152,28 +156,28 @@ def import_data(es: Elasticsearch, data_size=-1) -> None:
         print(f'Total execution after {total_processed_rows} rows: {round(time.time() - total_time, 3)}s') 
 
         cur.close()
-        # conn.close()
-        # input()
-        print(next_id)
+        print(last_id)
 
         if processed_rows == 0 or total_processed_rows >= data_size:
             break
-    
-    conn.close()
 
 
 def main() -> None:
-    # es = connect_elastic()
-    # if es == None:
-    #     print('Connection to Elastic failed :(')
-    #     return
-    
-    # create_index(es)
-    # import_data(es, data_size=-1)
-    
-    # es.close()
+    conn = connect_postgres()
+    if conn == None:
+        print('Connection to the database failed :(')
+        return
 
-    import_data(None, data_size=4000000)
+    es = connect_elastic()
+    if es == None:
+        print('Connection to Elastic failed :(')
+        return
+    
+    create_index(es)
+    import_data(conn, es, data_size=-1)
+    
+    es.close()
+    conn.close()
 
 
 if __name__ == '__main__':
