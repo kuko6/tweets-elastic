@@ -115,7 +115,7 @@ def import_data(conn: psycopg.Connection, es: Elasticsearch, data_size=-1) -> No
     if data_size != -1 and data_size < limit:
         limit = data_size
 
-    last_id = 0 # used as pagination, faster than using offset 
+    last_id = 0 # used as some sort of pagination, faster than using offset 
     
     # Since the `conversations` table includes around 32mil rows it is not very effective to select all of them at once.
     # Instead the data is split into multiple groups by the specified limit. 
@@ -136,7 +136,7 @@ def import_data(conn: psycopg.Connection, es: Elasticsearch, data_size=-1) -> No
             # Iterate over the batch to create bulk import for elastic
             for row in rows:
                 # Each insert has to also include a header, that specifies the action, selected index and id for the document
-                header = {'index': {'_index': INDEX_NAME, '_id': row.pop('id')}}
+                header = {'index': {'_index': INDEX_NAME, '_id': row['id']}}
                 data.extend([header, row])
                 processed_rows += 1
 
