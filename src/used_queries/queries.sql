@@ -16,7 +16,6 @@ SELECT COUNT(*) FROM conversations;
 ------------------------------------------------------------------------------------
 
 SELECT 
-	-- COUNT(*)
 	c.id, c."content", c.possibly_sensitive, c."language", c."source", c.retweet_count, c.reply_count, c.like_count, c.quote_count, c.created_at,
 	to_json(a.*) author,
 	COALESCE(ca.jsons, '[]') context_annotations,

@@ -1,0 +1,46 @@
+{
+	"query": {
+		"function_score": {
+			"query": {
+				"bool": {
+					"should": [
+						{
+							"query": { 
+								"nested": {
+									"path": "context_annotations",
+									"query": {
+										"match": {
+											"context_annotations.domain.name": {
+												"query": "Person"
+											}
+										}
+									}
+								}
+							},
+							"weight": 5
+						}
+					],
+					"filter": [
+						{
+							"range": { "author.following_count": { "gt": 100 } }
+						},
+						{
+							"range": { "author.followers_count": { "gt": 100 } }
+						},
+						{
+							"query": {
+								"bool": {
+									"must": {
+										"exists": {
+											"field": "links.url"
+										}
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	}
+}
