@@ -23,8 +23,8 @@ services:
       - elastic
     
   es02:
-    depends_on:
-      - es01
+    # depends_on:
+    #   - es01
     image: docker.elastic.co/elasticsearch/elasticsearch:8.5.2-arm64
     environment:
       - node.name=es02
@@ -44,8 +44,8 @@ services:
       - elastic
 
   es03:
-    depends_on:
-      - es02
+    # depends_on:
+    #   - es02
     image: docker.elastic.co/elasticsearch/elasticsearch:8.5.2-arm64
     environment:
       - node.name=es03

@@ -7,7 +7,7 @@ def connect_elastic() -> Elasticsearch:
     """ Connects to Elastic """
 
     try:
-        es = Elasticsearch('http://localhost:9200')
+        es = Elasticsearch('http://localhost:9200', request_timeout=500)
         es.info()
     except (Exception, ConnectionError) as error:
         print(error)
